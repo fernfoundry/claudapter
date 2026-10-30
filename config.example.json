@@ -1,0 +1,6 @@
+{
+  "model": "gpt-6.1-sol",
+  "reasoning": "medium",
+  "https_proxy": "http://127.0.0.1:7897",
+  "port": 18789
+}

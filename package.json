@@ -1,0 +1,13 @@
+{
+  "name": "claude-openai-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local Anthropic Messages to official OpenAI Responses gateway, managed with Python",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node tests/backend.test.js && python3 tests/test_stream_validation.py",
+    "start": "python3 manage.py start",
+    "verify": "python3 manage.py verify"
+  }
+}
