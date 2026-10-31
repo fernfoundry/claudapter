@@ -9,15 +9,31 @@ function textOf(content) {
   return content.filter((b) => b && b.type === 'text').map((b) => b.text).join('\n');
 }
 
+// Only descend through schema-valued keywords. Property/definition names and
+// annotation values (default, enum, examples, etc.) are data, not keywords.
+const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas', 'dependencies']);
+const SCHEMA_ARRAYS = new Set(['allOf', 'anyOf', 'oneOf', 'prefixItems']);
+const SCHEMA_VALUES = new Set([
+  'additionalProperties', 'unevaluatedProperties', 'propertyNames',
+  'items', 'additionalItems', 'unevaluatedItems', 'contains',
+  'not', 'if', 'then', 'else', 'contentSchema',
+]);
+
 function cleanSchema(node) {
-  if (Array.isArray(node)) return node.map(cleanSchema);
-  if (!node || typeof node !== 'object') return node;
-  const out = {};
-  for (const [k, v] of Object.entries(node)) {
-    if (k === '$schema' || k === 'cache_control') continue;
-    out[k] = cleanSchema(v);
-  }
-  return out;
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return node;
+  return Object.fromEntries(Object.entries(node)
+    .filter(([k]) => k !== '$schema' && k !== 'cache_control')
+    .map(([k, v]) => {
+      if (SCHEMA_MAPS.has(k) && v && typeof v === 'object' && !Array.isArray(v)) {
+        // Keep every map key, even when it happens to be named cache_control.
+        v = Object.fromEntries(Object.entries(v).map(([name, schema]) => [name, cleanSchema(schema)]));
+      } else if ((SCHEMA_ARRAYS.has(k) || k === 'items') && Array.isArray(v)) {
+        v = v.map(cleanSchema);
+      } else if (SCHEMA_VALUES.has(k)) {
+        v = cleanSchema(v);
+      }
+      return [k, v];
+    }));
 }
 
 function toolResultText(block) {
@@ -69,11 +85,17 @@ function toInput(messages) {
       continue;
     }
 
-    const text = blocks.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    if (text) {
-      input.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] });
-    }
+    let text = '';
+    const flushText = () => {
+      if (text) input.push({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] });
+      text = '';
+    };
     for (const b of blocks) {
+      if (b.type === 'text') {
+        text += b.text || '';
+        continue;
+      }
+      flushText();
       if (b.type !== 'tool_use') continue;
       input.push({
         type: 'function_call',
@@ -82,6 +104,7 @@ function toInput(messages) {
         arguments: JSON.stringify(b.input ?? {}),
       });
     }
+    flushText();
   }
   return input;
 }
@@ -165,6 +188,7 @@ async function run(body, model, effort, writer, log) {
 
     switch (type) {
       case 'response.output_text.delta':
+      case 'response.refusal.delta':
         writer.text(ev.delta);
         break;
 
@@ -191,7 +215,13 @@ async function run(body, model, effort, writer, log) {
             output_tokens: u.output_tokens ?? 0,
           };
         }
-        if (ev.response?.status === 'incomplete') stopReason = 'max_tokens';
+        if (type === 'response.incomplete' || ev.response?.status === 'incomplete') {
+          const reason = ev.response?.incomplete_details?.reason;
+          if (reason !== 'max_output_tokens') {
+            throw new Error(`OpenAI response incomplete (reason: ${reason || 'unknown'})`);
+          }
+          stopReason = 'max_tokens';
+        }
         break;
       }
 

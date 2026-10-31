@@ -9,14 +9,16 @@ class Reply:
  def __exit__(self,*args): pass
  def read(self): return stream.encode()
 def run(function):
+ proxy_handlers=[]
  replies=iter([{'content':[{'type':'tool_use','name':'gateway_check','id':'call_test','input':{'value':'ok'}}]},{'content':[{'type':'text','text':'GATEWAY_CHECK_OK'}]}])
  with tempfile.TemporaryDirectory() as temp:
-  ns={'request':lambda *a:next(replies),'json':json,'urllib':types.SimpleNamespace(request=types.SimpleNamespace(Request=lambda *a,**k:None,urlopen=lambda *a,**k:Reply())),'PRIVATE':pathlib.Path(temp),'time':types.SimpleNamespace(time=lambda:0),'save':lambda *a:None}
+  ns={'request':lambda *a:next(replies),'json':json,'urllib':types.SimpleNamespace(request=types.SimpleNamespace(Request=lambda *a,**k:None,urlopen=lambda *a,**k:(_ for _ in ()).throw(AssertionError('ambient proxy opener must not be used')),ProxyHandler=lambda proxies:proxy_handlers.append(proxies),build_opener=lambda *a:types.SimpleNamespace(open=lambda *a,**k:Reply()))),'PRIVATE':pathlib.Path(temp),'time':types.SimpleNamespace(time=lambda:0),'save':lambda *a:None}
   exec(function,ns)
-  with contextlib.redirect_stdout(io.StringIO()): ns['smoke']({'url':'http://localhost','token':'mock'},{'model':'mock'})
+  with contextlib.redirect_stdout(io.StringIO()): ns['smoke']({'url':'http://127.0.0.1:18789','token':'mock'},{'model':'mock'})
+  assert proxy_handlers == [{}], 'stream verification must explicitly bypass ambient proxies'
 legacy=code.replace("'STREAM_OK' not in text", "'STREAM_OK' not in stream")
 try: run(legacy)
 except RuntimeError as e: print('REPRODUCED legacy check:',e)
 else: raise AssertionError('Reproduction must fail')
 run(code)
-print('PASS current check: reassembles STREAM + _OK before validating')
+print('PASS current check: split text is reassembled; loopback stream bypasses ambient proxies')

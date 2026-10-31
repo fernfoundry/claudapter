@@ -4,6 +4,9 @@ const { AnthropicStreamWriter } = require('./anthropic-stream');
 
 const PORT = Number(process.env.GPT_PROXY_PORT || 8787);
 const BACKEND_NAME = 'openai-responses';
+const SERVICE = 'claude-openai-gateway';
+const INSTANCE_ID = process.env.GPT_PROXY_INSTANCE || '';
+const TOKEN = process.env.GPT_PROXY_TOKEN;
 const BIG = process.env.GPT_PROXY_MODEL || 'gpt-6.1-sol';
 const SMALL = process.env.GPT_PROXY_SMALL_MODEL || BIG;
 const EFFORT = process.env.GPT_PROXY_REASONING || 'medium';
@@ -127,19 +130,18 @@ const server = http.createServer((req, res) => {
   req.on('end', async () => {
     const path = req.url.split('?')[0];
     try {
+      if (!TOKEN || (req.headers.authorization !== `Bearer ${TOKEN}` && req.headers['x-api-key'] !== TOKEN)) {
+        return anthropicError(res, 401, 'Invalid local gateway token');
+      }
       if (req.method === 'GET' && path === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify({ ok: true, backend: BACKEND_NAME, big: BIG, small: SMALL }));
+        return res.end(JSON.stringify({ ok: true, service: SERVICE, pid: process.pid,
+          instance_id: INSTANCE_ID, backend: BACKEND_NAME, big: BIG, small: SMALL }));
       }
       if (req.method !== 'POST') return anthropicError(res, 404, `no route ${path}`);
 
       const raw = Buffer.concat(chunks).toString('utf8') || '{}';
       const body = JSON.parse(raw);
-
-      const token = process.env.GPT_PROXY_TOKEN;
-      if (!token || (req.headers.authorization !== `Bearer ${token}` && req.headers['x-api-key'] !== token)) {
-        return anthropicError(res, 401, 'Invalid local gateway token');
-      }
       if (!isGptModel(body.model)) body.model = BIG;
       if (path.endsWith('/count_tokens')) return handleCountTokens(body, res);
       if (!path.endsWith('/messages')) return anthropicError(res, 404, `no route ${path}`);
@@ -152,5 +154,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.error(`gpt-proxy on http://127.0.0.1:${PORT}  backend=${BACKEND_NAME}  main=${BIG}  small=${SMALL}  effort=${EFFORT}`);
+  console.error(`gpt-proxy on http://127.0.0.1:${server.address().port}  backend=${BACKEND_NAME}  main=${BIG}  small=${SMALL}  effort=${EFFORT}`);
 });

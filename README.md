@@ -1,156 +1,124 @@
-# Claude OpenAI Gateway
+![Claudapter — OpenAI models in Claude Code](docs/assets/claudapter.svg)
 
-保留 Claude Code / Claude Desktop 的操作界面，通过本地协议转换网关使用自己的 OpenAI API Key。本仓库记录 2026-10-30 的本机配置方法与代码。
+# Claudapter
 
-**当前正在使用的运行目录仍是 `/Users/mac/Documents/ChatGPT/个人/claude-openai`。本仓库是独立源码，不复制现有 Key，不自动迁移桌面设置。不要同时启动两份占用 18789 端口的服务。**
+Run OpenAI models from Claude Code.
 
-## 工作原理
+Claudapter runs a small local server that translates Anthropic Messages requests into OpenAI Responses requests, then translates the replies back. It handles text, streaming, and function-call round trips without rewriting your global Claude settings.
 
-```mermaid
-flowchart LR
-    CLI[Claude Code CLI] -->|Anthropic Messages + 本地 token| GW[127.0.0.1:18789]
-    APP[Claude Desktop] -->|Anthropic Messages + 本地 token| GW
-    GW -->|OpenAI Responses + OpenAI API Key| API[api.openai.com/v1/responses]
-    API -->|文本和函数调用事件| GW
-    GW -->|Anthropic JSON 或 SSE| APP
-    GW -->|Anthropic JSON 或 SSE| CLI
+You can keep working in Claude Code while choosing an OpenAI model for the session. Claude Desktop on macOS can also connect through its Gateway settings. Chat was tested during the initial setup; Desktop file tools still need testing.
+
+[简体中文](README.zh-CN.md) · [Desktop setup](docs/desktop.md) · [Troubleshooting](docs/troubleshooting.md) · [Contributing](CONTRIBUTING.md)
+
+<details>
+<summary>See how requests move through Claudapter</summary>
+
+![A Claude client connects to the remote OpenAI API through a local Claudapter adapter](docs/assets/protocol-adapter.svg)
+
+The terminal and adapter are local; the rack represents the remote OpenAI API. Tools still execute in the Claude client.
+
+</details>
+
+## Getting started
+
+You need Python 3.10+, Node.js 24+, and an OpenAI API key. For CLI use, install Claude Code and make sure `claude` is on your PATH. There are no third-party Python or npm packages to install.
+
+Clone the repository and run the launcher:
+
+```bash
+git clone https://github.com/solielxiao/claudapter.git
+cd claudapter
+./claudapter
 ```
 
-不能只把模型名改成 GPT：Claude 发出的是 Anthropic Messages 协议，OpenAI 提供的是 Responses 协议，工具定义、工具结果和流式事件都需要转换。
+If you downloaded a ZIP instead, open the extracted folder and run `python3 claudapter`.
 
-Python 负责配置、密钥和进程管理，Node.js 负责 HTTP 和流式转换，因此项目不是纯 Python。还有另一层网络代理：Clash 负责访问 OpenAI 的网络连通性；本项目网关负责协议翻译，二者分工不同。
+On the first run, it checks the runtimes and asks for a model, reasoning effort, optional proxy, and API key. The key is entered without echoing. It creates the configuration and tests the connection. **First-time setup makes billable API requests.** Once setup passes, later launches reuse your settings without repeating the prompts or API checks.
 
-## 代码结构
+Claude Code opens in your current directory. To work on another project:
 
-| 文件 | 用途 |
+```bash
+# Record this while you are still in the Claudapter repository.
+CLAUDAPTER_DIR="$PWD"
+cd /path/to/your/project
+"$CLAUDAPTER_DIR/claudapter"
+```
+
+Replace the project path with your own. Your original `claude` command keeps its existing settings. Use `./claudapter setup` to configure without launching a client, or double-click `claudapter.command` on macOS. Missing runtimes are reported; no software is installed automatically.
+
+<details>
+<summary>Configuration files and a simple connection check</summary>
+
+The guide creates `config.json`. Your model must support Responses, function calling, and the configured `reasoning.effort`; the default example is not available to every account. Leave the proxy empty for direct access, or enter your own HTTP(S) proxy URL and port.
+
+An existing `config.json` is reused without re-prompting or overwriting. You can edit it manually and run `./claudapter restart`.
+
+To check a text conversation with client tools disabled:
+
+```bash
+./claudapter -p "Reply with exactly CLAUDAPTER_OK." --tools "" --max-turns 1
+```
+
+This also makes a billable API request. This checks a text conversation. File tools need separate testing.
+
+</details>
+
+## Claude Desktop
+
+Desktop has its own Gateway configuration. On macOS, open **Developer → Configure Third-Party Inference** and follow the [Desktop setup guide](docs/desktop.md).
+
+One important detail: Desktop needs the local token from `private/gateway-token.json` in its gateway key field. Your OpenAI API key is stored by the local adapter and used for requests to OpenAI. After saving the Desktop configuration, start the adapter and open the app with:
+
+```bash
+./claudapter desktop
+```
+
+You can also double-click `launch-desktop.command`. Neither method registers an auto-start service, so you need to start it again after reboot.
+
+This is an unofficial compatibility setup. Desktop currently needs a Claude-shaped route alias, which the adapter maps to your configured OpenAI model. The client may infer inaccurate context limits or capabilities from that alias. Test in a disposable directory before working with your own files.
+
+## Current support
+
+| Feature | Testing so far |
 |---|---|
-| `manage.py` | 隐藏输入 Key，启动/停止网关，生成 CLI 配置，真实 API 验证 |
-| `src/server.js` | 本机 HTTP 路由、鉴权、模型别名、非流式累积 |
-| `src/responses-backend.js` | Messages → Responses，解析上游文本和函数调用事件 |
-| `src/anthropic-stream.js` | Anthropic SSE 内容块与生命周期事件 |
-| `config.example.json` | 不含密钥的配置模板 |
-| `*.command` | macOS 双击入口 |
-| `tests/` | 不需要 Key 的离线回归测试 |
-| `private/` | 运行后生成的私密凭证、状态和日志；被 Git 忽略 |
-| `docs/implementation.md` | 具体协议映射与代码说明 |
-| `docs/local-setup.md` | 本机操作全过程、桌面设置、排障和迁移 |
+| Text, streaming, function calls and results | Offline regressions and live API checks during initial setup |
+| Claude Code CLI text conversations | Manually tested during initial setup |
+| macOS Claude Desktop chat | Manually tested during initial setup |
+| Desktop file read/write and complete MCP workflows | Not verified |
+| Windows Desktop and `.command` launchers | Not supported |
 
-源码来源和改动见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+Changes since that initial setup have been checked offline. CI is configured for Ubuntu/macOS, Node 24, and Python 3.10; it does not run paid API or Desktop tests. If you change models or client versions, run your own checks too.
 
-## 从零配置
+## Commands
 
-要求：macOS、Python 3.10+、Node.js 24+、已安装 `claude` CLI。没有第三方 Python/npm 依赖。Node 24 用于内置 fetch 和环境代理支持。
+Run these from the Claudapter repository:
 
 ```bash
-cd /Users/mac/code/python/claude-openai-gateway
-cp config.example.json config.json
+./claudapter status        # Check the saved local instance; no OpenAI request
+./claudapter restart       # Restart after configuration or source changes
+./claudapter stop          # Stop an instance whose identity was verified
+./claudapter verify        # Repeat the live API checks; incurs usage
+npm test                  # Offline tests; no real key needed
 ```
 
-按本机环境修改 `config.json`：
+After changing the model, key, proxy, runtime, or source, finish active sessions before running `restart`. The manager will not automatically restart an active instance to apply changes. `status` checks the saved instance, not whether it is using your latest configuration.
 
-```json
-{
-  "model": "gpt-6.1-sol",
-  "reasoning": "medium",
-  "https_proxy": "http://127.0.0.1:7897",
-  "port": 18789
-}
-```
+Use `./claudapter --help` for manager help, or `./claudapter -- --help` for Claude's own help. Manager messages are currently in Chinese. See [troubleshooting](docs/troubleshooting.md) for connection failures, occupied ports, and stale state after reboot.
 
-`7897` 是本次可用的 Clash 端口，其他机器需改成自己的代理。能直连时把 `https_proxy` 设为空字符串。模型和 reasoning 需要与 API 组织的实际权限、模型能力匹配。
+## Data and limitations
 
-创建领取额度的 API 组织下的项目 Key，然后运行：
+Credentials, tokens, logs, and state are kept in the Git-ignored `private/` directory. The directory uses `700` permissions and credential files use `600`; they are not encrypted. Do not upload that directory. The server listens only on `127.0.0.1` and is intended for personal use.
 
-```bash
-./setup.command
-```
+Prompts and tool results are forwarded to OpenAI. The Claude client still executes tools and manages file and command permissions. Claudapter translates the protocol; the model runs on OpenAI's servers.
 
-终端隐藏输入 Key。脚本先验证模型列表，再测试工具调用、结果回传和流式回复，会消耗少量 API 额度。Key 不要写在命令行参数、Git 或截图里。
+Caching, thinking, document input, server-side tools, and tool search are not fully mapped. Images inside tool results become placeholders. Parallel tool calls are disabled and encrypted OpenAI reasoning is not preserved, so longer tasks can behave differently from native clients. Token counts are approximate; use your OpenAI bill for actual costs.
 
-脚本优先检查指定运行时和 PATH，并检查常见的本机 NVM 安装。必要时可显式指定：
+Retry, cancellation, concurrency, and SSE handling are still basic. If a client flow fails, an issue with the client version, model, and a small redacted reproduction would help. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-```bash
-CLAUDE_OPENAI_NODE=/绝对路径/node \
-CLAUDE_OPENAI_CLI=/绝对路径/claude \
-python3 manage.py start
-```
+More detail: [implementation notes / 中文](docs/implementation.md) and [full setup and recovery / 中文](docs/local-setup.md).
 
-## 终端版使用
+## Acknowledgements
 
-在你要操作的项目目录启动：
+Translation code is adapted from [hanjun-lin/claude-gpt](https://github.com/hanjun-lin/claude-gpt), under the [MIT license](LICENSE). Attribution and the reviewed upstream commit are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-```bash
-cd /你的项目路径
-/Users/mac/code/python/claude-openai-gateway/launch.command
-```
-
-入口自动启动网关，为当前 Claude 进程传入独立的 `--settings` 和 `--model`；不会改写 `~/.claude/settings.json`。原来的 `claude` 命令仍可使用阿里云配置。
-
-## 桌面版使用
-
-桌面端不继承 CLI 的网关设置，需要在自己的第三方推理配置中填写：
-
-| 字段 | 本次配置 |
-|---|---|
-| Inference provider | Gateway |
-| Gateway base URL | `http://127.0.0.1:18789`，不加 `/v1` |
-| Credential kind | Static API key |
-| Gateway API key | `private/gateway-token.json` 中的本地 token，**不是 OpenAI Key** |
-| Gateway auth scheme | bearer |
-| Model discovery | off |
-| Model ID | `claude-sonnet-4-5`，仅为桌面兼容路由别名 |
-| Display name | `GPT-6.1 Sol · OpenAI API` |
-
-完整菜单步骤见 [本机配置记录](docs/local-setup.md)。
-
-**实际模型由网关的 `config.json` 指定。Claude 名称只是兼容路由，不表示实际使用 Claude 模型。** 桌面官方网关支持面向 Claude，这个 GPT 接法属于非官方兼容实现，后续版本可能改变校验和行为。
-
-保存并重启后：
-
-```bash
-./launch-desktop.command
-```
-
-该入口先启动网关，再打开 Claude；没有注册系统开机自启。重启电脑后，只点 Claude 图标不会自动启动本地网关。
-
-## 测试与管理
-
-```bash
-# 离线，不访问 API，不需要 Key；须在 Node 24+ 环境下运行
-npm test
-
-# 真实 API 验证，会消耗少量额度
-python3 manage.py verify
-
-# 只启动网关
-python3 manage.py start
-
-# 停止本目录管理的网关
-python3 manage.py stop
-```
-
-本次配置实测：
-
-- Responses API、函数调用、工具结果回传、流式文本通过。
-- CLI 返回 `CLAUDE_GATEWAY_OK`。
-- Claude Desktop 对话返回 `DESKTOP_GPT_OK`。
-- 桌面 Code 文件读取测试未完成：当时卡在信任文件夹步骤，重启恢复。不能把对话成功当成全部工具兼容。
-
-## 当前实现的边界
-
-- token 计数按字符估算，不是 OpenAI 精确计费；桌面费用估算也不等于账单。
-- 不完整转换缓存、thinking、原生服务端工具、工具搜索、文档输入等字段。
-- 用户消息支持文本和图片；工具结果里的图片转成占位文字。
-- 禁用并行工具调用，降低内容块和并发参数流的转换复杂度。
-- 不保留或回传 OpenAI 加密推理内容，长任务连续性与原生客户端不同。
-- 只监听本机 IPv4 回环地址，不直接支持远程机器访问。
-- Key 使用权限 600 的本地文件保存，不是 Keychain 加密存储；私密目录权限 700。
-- 没有生产级并发控制、完整重试、客户端取消传播或完整 SSE 规范覆盖。
-- 固定发送 reasoning.effort，不保证任意 GPT 模型都接受。
-
-## 参考资料
-
-- [OpenAI 工具调用](https://developers.openai.com/api/docs/guides/function-calling)
-- [订阅附带 API 额度](https://developers.openai.com/api/docs/guides/chatgpt-api-credits)：额度适用范围、有效期以当前规则和组织后台为准。
-- [Claude 桌面连接网关](https://code.claude.com/docs/en/llm-gateway-connect#desktop-app)
-- [Claude Desktop Gateway 配置](https://claude.com/docs/third-party/claude-desktop/gateway)
+References: [OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling) · [Claude Desktop gateway setup](https://code.claude.com/docs/en/llm-gateway-connect#desktop-app).

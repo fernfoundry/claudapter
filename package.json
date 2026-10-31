@@ -1,13 +1,31 @@
 {
-  "name": "claude-openai-gateway",
+  "name": "claudapter",
   "version": "0.1.0",
   "private": true,
-  "description": "Local Anthropic Messages to official OpenAI Responses gateway, managed with Python",
+  "description": "Use OpenAI models in Claude Code through a local Messages-to-Responses adapter.",
   "license": "MIT",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "test": "node tests/backend.test.js && python3 tests/test_stream_validation.py",
+    "test": "node tests/backend.test.js && node tests/server.test.js && python3 -B tests/test_manage.py && python3 -B tests/test_onboarding.py && python3 -B tests/test_stream_validation.py",
     "start": "python3 manage.py start",
     "verify": "python3 manage.py verify"
+  },
+  "keywords": [
+    "claude-code",
+    "claude-desktop",
+    "openai",
+    "responses-api",
+    "anthropic-messages",
+    "local-proxy"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/solielxiao/claudapter.git"
+  },
+  "homepage": "https://github.com/solielxiao/claudapter#readme",
+  "bugs": {
+    "url": "https://github.com/solielxiao/claudapter/issues"
   }
 }

@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Claudapter's user-facing entry point. No runtime lookup or writes for --help."""
+import sys
+
+if sys.version_info < (3, 10):
+    print('Claudapter needs Python 3.10 or later.', file=sys.stderr)
+    raise SystemExit(1)
+
+import manage
+
+HELP = """Claudapter — 在 Claude Code 中使用 OpenAI 模型
+
+用法：
+  ./claudapter                  首次引导配置，然后启动 Claude Code
+  ./claudapter setup            只做首次配置和真实 API 验证
+  ./claudapter desktop          配置好本地服务后打开 macOS Claude Desktop
+  ./claudapter status           查看本地服务状态
+  ./claudapter restart          更新配置后重启服务
+  ./claudapter stop             停止服务
+  ./claudapter verify           重新验证真实 API
+  ./claudapter --help           查看帮助
+
+也可以用 python3 claudapter 启动。setup / verify 会产生 API 用量。
+桌面端仍需单独填写 Gateway 设置；不会自动修改客户端或安装运行时。
+附加的 Claude 参数可直接跟在命令后，如 ./claudapter -p 'hello'。
+"""
+
+
+def main(args=None):
+    args = list(sys.argv[1:] if args is None else args)
+    if args[:1] in (['--help'], ['-h'], ['help']):
+        if len(args) != 1: raise RuntimeError('帮助命令不接受额外参数')
+        print(HELP)
+        return
+    aliases = {'setup': 'onboard', 'launch': 'connect', 'desktop': 'connect-desktop'}
+    if not args:
+        routed = ['connect']
+    elif args[0] in aliases:
+        routed = [aliases[args[0]], *args[1:]]
+    elif args[0] in manage.MODES:
+        routed = args
+    elif args[0].startswith('-'):
+        routed = ['connect', *args]
+    else:
+        raise RuntimeError('未知命令；请运行 ./claudapter --help')
+    manage.main(routed)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (Exception, KeyboardInterrupt) as error:
+        print('\n未完成：' + str(error), file=sys.stderr)
+        raise SystemExit(1)
