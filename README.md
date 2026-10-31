@@ -26,7 +26,7 @@ You need Python 3.10+, Node.js 24+, and an OpenAI API key. For CLI use, install 
 Clone the repository and run the launcher:
 
 ```bash
-git clone https://github.com/solielxiao/claudapter.git
+git clone https://github.com/fernfoundry/claudapter.git
 cd claudapter
 ./claudapter
 ```

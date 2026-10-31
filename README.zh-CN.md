@@ -26,7 +26,7 @@ Claudapter 在本机启动一个小服务，把 Claude 客户端的请求转换�
 克隆仓库后启动：
 
 ```bash
-git clone https://github.com/solielxiao/claudapter.git
+git clone https://github.com/fernfoundry/claudapter.git
 cd claudapter
 ./claudapter
 ```

@@ -22,10 +22,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/solielxiao/claudapter.git"
+    "url": "git+https://github.com/fernfoundry/claudapter.git"
   },
-  "homepage": "https://github.com/solielxiao/claudapter#readme",
+  "homepage": "https://github.com/fernfoundry/claudapter#readme",
   "bugs": {
-    "url": "https://github.com/solielxiao/claudapter/issues"
+    "url": "https://github.com/fernfoundry/claudapter/issues"
   }
 }
