@@ -4,11 +4,11 @@
 
 在 Claude Code 里用 OpenAI 的模型。
 
-Claudapter 在本机启动一个小服务，把 Claude 客户端的请求转换成 OpenAI Responses API 的格式，再把回复转回来。文本、流式输出和工具调用都在这一层处理，原来的全局 Claude 配置会保留。
+Claudapter 在本机启动一个小服务，把 Anthropic Messages 请求转换成 OpenAI Responses 请求，再把回复转回来。它处理文本、流式输出和工具调用往返，原来的全局 Claude 配置会保留。
 
-你可以继续用熟悉的 Claude Code，同时为当前会话选择 OpenAI 模型。macOS 的 Claude Desktop 也能通过 Gateway 设置接入，目前验证过聊天，文件工具还需要继续测试。
+你可以继续用熟悉的 Claude Code，同时为当前会话选择 OpenAI 模型。macOS 的 Claude Desktop 也能通过 Gateway 设置接入。初次配置时验证过聊天，桌面文件工具仍未验证。
 
-[English](README.md) · [安装与排障](docs/local-setup.md) · [实现原理](docs/implementation.md) · [参与贡献](CONTRIBUTING.md)
+[English](README.md) · [桌面配置](docs/local-setup.md#4-macos-桌面配置) · [排障指南](docs/local-setup.md#6-排障) · [参与贡献](CONTRIBUTING.md)
 
 <details>
 <summary>展开看看请求是怎么走的</summary>
@@ -59,7 +59,7 @@ cd /path/to/your/project
 ./claudapter -p "Reply with exactly CLAUDAPTER_OK." --tools "" --max-turns 1
 ```
 
-这也会调用真实 API。这条请求只检查文本对话，文件工具需要另外测试。
+这也会调用真实 API 并产生用量，只检查文本对话；文件工具需要另外测试。
 
 </details>
 
@@ -87,7 +87,7 @@ cd /path/to/your/project
 | 桌面文件读写、完整 MCP 流程 | 尚未验证 |
 | Windows 桌面与 `.command` 入口 | 不支持 |
 
-后续修改主要通过离线测试检查。CI 配置为 Ubuntu/macOS、Node 24 和 Python 3.10，不运行付费 API 或桌面测试。如果你换了模型或客户端版本，仍建议自己验证一遍。
+初次配置之后的修改通过离线测试检查。CI 配置为 Ubuntu/macOS、Node 24 和 Python 3.10，不运行付费 API 或桌面测试。如果你换了模型或客户端版本，仍建议自己验证一遍。
 
 ## 常用命令
 
@@ -103,7 +103,7 @@ npm test                  # 离线测试，不需要真实 Key
 
 修改模型、Key、代理、运行时或源码后，先结束正在进行的会话，再执行 `restart`。服务不会为了应用新配置而自动打断会话。`status` 只检查保存的实例是否正常，不代表新配置已经生效。
 
-管理器帮助用 `./claudapter --help`；要看 Claude 自身的帮助，用 `./claudapter -- --help`。连接失败、端口占用和重启后残留状态的处理方法都在[排障指南](docs/local-setup.md#6-排障)里。
+管理器帮助用 `./claudapter --help`；要看 Claude 自身的帮助，用 `./claudapter -- --help`。管理器提示目前使用中文。连接失败、端口占用和重启后残留状态的处理方法都在[排障指南](docs/local-setup.md#6-排障)里。
 
 ## 数据和限制
 
@@ -114,6 +114,8 @@ npm test                  # 离线测试，不需要真实 Key
 目前没有完整处理缓存、thinking、文档输入、原生服务端工具和工具搜索；工具结果中的图片会转成占位文字。并行工具调用被关闭，OpenAI 加密推理内容不会保留，所以长任务的表现可能与原生客户端不同。token 计数也是估算值，费用请以 OpenAI 账单为准。
 
 重试、取消、并发和 SSE 处理还比较简单。这些都是后续需要补的地方。遇到问题时，欢迎带上客户端版本、模型和脱敏后的复现步骤提 Issue，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+更多细节见[实现原理](docs/implementation.md)和[完整安装与恢复指南](docs/local-setup.md)。
 
 ## 致谢
 

@@ -59,7 +59,7 @@ To check a text conversation with client tools disabled:
 ./claudapter -p "Reply with exactly CLAUDAPTER_OK." --tools "" --max-turns 1
 ```
 
-This also makes a billable API request. This checks a text conversation. File tools need separate testing.
+This also makes a billable API request and checks only text conversation. File tools need separate testing.
 
 </details>
 
